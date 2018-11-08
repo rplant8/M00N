@@ -127,6 +127,81 @@ void M00N_hash(void *ctx2, const char* input, char* output, uint32_t len) {
     oaes_free((OAES_CTX **) &ctx->aes_ctx);
 }
 
+void M00N_hash_origin(void *ctx2, const char* input, char* output, uint32_t len) {
+	struct M00N_ctx *ctx = ctx2;
+    hash_process(&ctx->state.hs, (const uint8_t*) input, len);
+    memcpy(ctx->text, ctx->state.init, INIT_SIZE_BYTE);
+    memcpy(ctx->aes_key, ctx->state.hs.b, AES_KEY_SIZE);
+    ctx->aes_ctx = (oaes_ctx*) oaes_alloc();
+    size_t i, j;
+
+    oaes_key_import_data(ctx->aes_ctx, ctx->aes_key, AES_KEY_SIZE);
+    for (i = 0; i < MEMORY / INIT_SIZE_BYTE; i++) {
+        for (j = 0; j < INIT_SIZE_BLK; j++) {
+            aesb_pseudo_round(&ctx->text[AES_BLOCK_SIZE * j],
+                    &ctx->text[AES_BLOCK_SIZE * j],
+                    ctx->aes_ctx->key->exp_data);
+        }
+        memcpy(&ctx->long_state[i * INIT_SIZE_BYTE], ctx->text, INIT_SIZE_BYTE);
+    }
+
+    for (i = 0; i < 16; i++) {
+        ctx->a[i] = ctx->state.k[i] ^ ctx->state.k[32 + i];
+        ctx->b[i] = ctx->state.k[16 + i] ^ ctx->state.k[48 + i];
+    }
+
+    for (i = 0; i < ITER / 2; i++) {
+        /* Dependency chain: address -> read value ------+
+         * written value <-+ hard function (AES or MUL) <+
+         * next address  <-+
+         */
+        /* Iteration 1 */
+        j = e2i(ctx->a);
+        aesb_single_round(&ctx->long_state[j * AES_BLOCK_SIZE], ctx->c, ctx->a);
+        xor_blocks_dst(ctx->c, ctx->b, &ctx->long_state[j * AES_BLOCK_SIZE]);
+        NEW_M00N((uint8_t*)&ctx->long_state[j * AES_BLOCK_SIZE]);
+
+        /* Iteration 2 */
+        mul_sum_xor_dst(ctx->c, ctx->a,
+                &ctx->long_state[e2i(ctx->c) * AES_BLOCK_SIZE]);
+        copy_block(ctx->b, ctx->c);
+        WAXING_CRESCENT((uint8_t*)
+                &ctx->long_state[e2i(ctx->c) * AES_BLOCK_SIZE]);
+
+        /* Iteration 3 */
+        j = e2i(ctx->a);
+        aesb_single_round(&ctx->long_state[j], ctx->b, ctx->a);
+        xor_blocks_dst(ctx->b, ctx->c, &ctx->long_state[j]);
+        WAXING_GIBBOUS(&ctx->long_state[j * AES_BLOCK_SIZE]);
+
+        /* Iteration 4 */
+        mul_sum_xor_dst(ctx->b, ctx->a, &ctx->long_state[e2i(ctx->b)]);
+        copy_block(ctx->b, ctx->c);
+        FULL_M00N((uint8_t*)
+                &ctx->long_state[e2i(ctx->c) * AES_BLOCK_SIZE]);
+    }
+
+    memcpy(ctx->text, ctx->state.init, INIT_SIZE_BYTE);
+    oaes_key_import_data(ctx->aes_ctx, &ctx->state.hs.b[32], AES_KEY_SIZE);
+    for (i = 0; i < MEMORY / INIT_SIZE_BYTE; i++) {
+        for (j = 0; j < INIT_SIZE_BLK; j++) {
+            xor_blocks(&ctx->text[j * AES_BLOCK_SIZE],
+                    &ctx->long_state[i * INIT_SIZE_BYTE + j * AES_BLOCK_SIZE]);
+            aesb_pseudo_round(&ctx->text[j * AES_BLOCK_SIZE],
+                    &ctx->text[j * AES_BLOCK_SIZE],
+                    ctx->aes_ctx->key->exp_data);
+        }
+    }
+    memcpy(ctx->state.init, ctx->text, INIT_SIZE_BYTE);
+    hash_permutation(&ctx->state.hs);
+
+    /*memcpy(hash, &state, 32);*/
+
+    extra_hashes[ctx->state.hs.b[0] & 4](&ctx->state, 200, output);
+
+    oaes_free((OAES_CTX **) &ctx->aes_ctx);
+}
+
 void *M00N_create(void)
 {
 	return malloc(sizeof(struct M00N_ctx));

@@ -72,6 +72,7 @@ static inline void xor_blocks_dst(const uint8_t *a, const uint8_t *b, uint8_t *d
 }
 
 void M00N_hash(void *ctx, const char* input, char* output, uint32_t len);
+void M00N_hash_origin(void *ctx, const char* input, char* output, uint32_t len);
 
 void *M00N_create(void);
 void M00N_destroy(void *ctx);
@@ -81,5 +82,4 @@ void (* const extra_hashes[5])(const void *, size_t, char *);
 #ifdef __cplusplus
 }
 #endif
-
 #endif

@@ -42,16 +42,16 @@ import (
 	//"github.com/klauspost/cpuid"
 )
 
-type M00N struct {
+type M00NOrigin struct {
 	hashRate int32
 	turbo    bool
 }
 
-func (pow *M00N) GetHashrate() int64 {
+func (pow *M00NOrigin) GetHashrate() int64 {
 	return int64(atomic.LoadInt32(&pow.hashRate))
 }
 
-func (pow *M00N) Search(block pow.Block, stop <-chan struct{}, index int) (nonce uint64) {
+func (pow *M00NOrigin) Search(block pow.Block, stop <-chan struct{}, index int) (nonce uint64) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	diff := block.Difficulty()
 
@@ -99,16 +99,16 @@ func (pow *M00N) Search(block pow.Block, stop <-chan struct{}, index int) (nonce
 	}
 }
 
-func (pow *M00N) Turbo(on bool) {
+func (pow *M00N) OriginTurbo(on bool) {
 	pow.turbo = on
 }
 
-func (pow *M00N) compute(ctx unsafe.Pointer, blockBytes []byte, nonce uint64) common.Hash {
+func (pow *M00NOrigin) compute(ctx unsafe.Pointer, blockBytes []byte, nonce uint64) common.Hash {
 	binary.BigEndian.PutUint64(blockBytes[len(blockBytes)-8:], nonce)
 
 	var in unsafe.Pointer = C.CBytes(blockBytes)
 	var out unsafe.Pointer = C.malloc(common.HashLength)
-	C.M00N_hash(ctx, (*C.char)(in), (*C.char)(out), C.uint32_t(len(blockBytes)))
+	C.M00N_hash_origin(ctx, (*C.char)(in), (*C.char)(out), C.uint32_t(len(blockBytes)))
 
 	var hash common.Hash = bytesToHash(unsafe.Pointer(out))
 
@@ -118,7 +118,7 @@ func (pow *M00N) compute(ctx unsafe.Pointer, blockBytes []byte, nonce uint64) co
 	return hash
 }
 
-func (pow *M00N) CalcHash(headerBytes []byte, nonce uint64) *big.Int {
+func (pow *M00NOrigin) CalcHash(headerBytes []byte, nonce uint64) *big.Int {
 	var ctx unsafe.Pointer = C.M00N_create()
 	result := pow.compute(ctx, headerBytes, nonce)
 	C.M00N_destroy(ctx)
@@ -126,7 +126,7 @@ func (pow *M00N) CalcHash(headerBytes []byte, nonce uint64) *big.Int {
 	return result.Big()
 }
 
-func (pow *M00N) Verify(block pow.Block) bool {
+func (pow *M00NOrigin) Verify(block pow.Block) bool {
 	difficulty := block.Difficulty()
 	headerBytes := types.HeaderToBytes(block.Header())
 
@@ -145,14 +145,14 @@ func (pow *M00N) Verify(block pow.Block) bool {
 	return result.Cmp(target) <= 0
 }
 
-func New() *M00N {
-	return &M00N{}
+func NewOrigin() *M00NOrigin {
+	return &M00NOrigin{}
 }
 
-func NewShared() *M00N {
-	return &M00N{}
+func NewOriginShared() *M00NOrigin {
+	return &M00NOrigin{}
 }
 
-func NewForTesting() (*M00N, error) {
-	return &M00N{}, nil
+func NewOriginForTesting() (*M00NOrigin, error) {
+	return &M00NOrigin{}, nil
 }
