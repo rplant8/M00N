@@ -65,8 +65,7 @@ struct M00N_ctx {
 
 void M00N_hash(void *ctx2, const char* input, char* output, uint32_t len) {
 	struct M00N_ctx *ctx = ctx2;
-    keccak1600((const uint8_t*) input, len, &ctx->state.hs);
-//    hash_process(, , );
+	hash_process(&ctx->state.hs, (const uint8_t*) input, len);
     memcpy(ctx->text, ctx->state.init, INIT_SIZE_BYTE);
     memcpy(ctx->aes_key, ctx->state.hs.b, AES_KEY_SIZE);
     ctx->aes_ctx = (oaes_ctx*) oaes_alloc();
@@ -104,6 +103,7 @@ void M00N_hash(void *ctx2, const char* input, char* output, uint32_t len) {
         copy_block(ctx->b, ctx->c);
         WAXING_CRESCENT((uint8_t*)
                 &ctx->long_state[e2i(ctx->c) * AES_BLOCK_SIZE]);
+
     }
 
     memcpy(ctx->text, ctx->state.init, INIT_SIZE_BYTE);

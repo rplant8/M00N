@@ -1,5 +1,5 @@
-#ifndef M00N_H
-#define M00N_H
+#ifndef M00N_FORPOOL_H
+#define M00N_FORPOOL_H
 
 #ifdef __cplusplus
 extern "C" {
